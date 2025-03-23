@@ -66,8 +66,10 @@ class NaverMapCrawler:
 
         # 결과 컨테이너 찾기
         container_selectors = [
-            "div#_pcmap_list_scroll_container",
-            "ul.zRM9F"  # 리스트 컨테이너 선택자
+            # "div#_pcmap_list_scroll_container",
+            # "ul.zRM9F"  # 리스트 컨테이너 선택자
+            "div.XUrfU",
+            "div.Ryr1F"
         ]
 
         container = None
@@ -255,42 +257,33 @@ class NaverMapCrawler:
                                         continue
                             except:
                                 print("검색 결과 화면으로 복귀 실패, 다음 지역/카테고리로 넘어갑니다.")
-                                return total_places
+                                return total_places               
                     
                     # 다음 페이지 존재 여부 확인 및 이동
                     try:
                         next_button = None
-                        next_button_selectors = [
-                            "a.btn_next", 
-                            "a.qjQuG", 
-                            "a.fqbRJt",  # [사용자 편집 가능 - 4] 다음 페이지 버튼 선택자를 네이버 지도 UI에 맞게 수정
-                            "button.pagination_next"
-                        ]
-                        
-                        for selector in next_button_selectors:
-                            try:
-                                next_button = self.driver.find_element(By.CSS_SELECTOR, selector)
-                                if next_button:
-                                    break
-                            except:
-                                continue
-                        
-                        if not next_button:
+
+                        # "다음페이지" 텍스트를 가진 span 태그 찾기
+                        try:
+                            next_button = self.driver.find_element(By.XPATH, "//span[@class='place_blind' and text()='다음페이지']")
+                        except:
                             print("다음 페이지 버튼을 찾을 수 없습니다.")
                             break
-                            
-                        # 비활성화된 다음 버튼 확인
-                        if 'disabled' in next_button.get_attribute('class') or 'deactive' in next_button.get_attribute('class'):
-                            print("마지막 페이지에 도달했습니다.")
+                        
+                        # page_num이 5이면 마지막 페이지로 판단하고 종료
+                        if page_num >= 5:
+                            print("마지막 페이지입니다.")
                             break
                         
+                        # 버튼 클릭 후 다음 페이지로 이동
                         next_button.click()
                         time.sleep(3)  # 페이지 전환 대기 시간 증가
-                        page_num += 1
+                        page_num += 1  # 페이지 번호 증가
+
                     except Exception as e:
                         print(f"다음 페이지 이동 중 오류: {e}")
-                        break
-                    
+                        break                    
+
                 except Exception as e:
                     print(f"페이지 크롤링 중 오류 발생: {e}")
                     break
