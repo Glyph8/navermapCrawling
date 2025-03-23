@@ -55,7 +55,7 @@ class NaverMapCrawler:
         # 현재 시간을 파일명에 사용
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    def scroll_to_load_all_items(self, max_scrolls=10):
+    def scroll_to_load_all_items(self, max_scrolls=4):
         """
         iframe 내부의 모든 검색 결과를 로드하기 위해 스크롤 다운 수행
 
@@ -86,7 +86,15 @@ class NaverMapCrawler:
             # 기본 컨텍스트로 돌아가기
             self.driver.switch_to.default_content()
             return
+        
 
+        # 초기 항목 수 확인 (스크롤 진행 확인을 위한 지표)
+        initial_items = self.driver.find_elements(By.CSS_SELECTOR, "li.UEzoS")
+        initial_count = len(initial_items)
+        print(f"초기 항목 수: {initial_count}")
+
+        # 연속으로 높이가 변하지 않은 횟수를 추적
+        unchanged_count = 0
         last_height = self.driver.execute_script("return arguments[0].scrollHeight", container)
 
         # 스크롤 수행
@@ -95,17 +103,88 @@ class NaverMapCrawler:
 
             # 컨테이너 끝까지 스크롤
             self.driver.execute_script("arguments[0].scrollTo(0, arguments[0].scrollHeight);", container)
-            time.sleep(2)  # 새 결과 로딩 대기
+            time.sleep(3)  # 새 결과 로딩 대기
 
             # 새 높이 확인
             new_height = self.driver.execute_script("return arguments[0].scrollHeight", container)
 
-            # 이미 모든 항목이 로드된 경우
-            if new_height == last_height:
-                print(f"모든 결과 로드됨 (스크롤 {scroll+1}번 후)")
-                break
 
+
+
+            # 이미 모든 항목이 로드된 경우
+            # if new_height == last_height:
+            #     print(f"모든 결과 로드됨 (스크롤 {scroll+1}번 후)")
+            #     break
+            # last_height = new_height
+
+            # 현재 항목 수 확인
+            current_items = self.driver.find_elements(By.CSS_SELECTOR, "li.UEzoS")
+            current_count = len(current_items)
+            print(f"현재 항목 수: {current_count} (스크롤 {scroll+1}번 후)")
+
+            # 항목 수 또는 높이를 기준으로 스크롤 진행 여부 판단
+            if new_height == last_height:
+                unchanged_count += 1
+                print(f"높이 변화 없음 ({unchanged_count}번 연속)")
+                
+                # 높이가 3번 연속으로 변하지 않으면 추가 시도
+                if unchanged_count >= 3:
+                    # 특정 지점으로 스크롤 시도 (중간 지점으로)
+                    mid_height = new_height / 2
+                    self.driver.execute_script(f"arguments[0].scrollTo(0, {mid_height});", container)
+                    time.sleep(1)
+                    # 다시 맨 아래로 스크롤
+                    self.driver.execute_script("arguments[0].scrollTo(0, arguments[0].scrollHeight);", container)
+                    time.sleep(3)
+                    
+                    # 다시 확인
+                    newer_height = self.driver.execute_script("return arguments[0].scrollHeight", container)
+                    if newer_height == new_height and current_count == initial_count:
+                        print("스크롤 진행이 멈춤, 모든 결과가 로드된 것으로 판단")
+                        break
+                    else:
+                        # 높이가 변했거나 항목이 증가했으면 계속 진행
+                        unchanged_count = 0
+                        new_height = newer_height
+            else:
+                # 높이가 변했으면 카운터 리셋
+                unchanged_count = 0
+                
+            # JavaScript 실행을 통한 직접 스크롤 시도 (대안적 방법)
+            if scroll > 2 and current_count <= initial_count:
+                print("직접 JavaScript 실행으로 스크롤 시도")
+                self.driver.execute_script("""
+                    document.querySelector('li.UEzoS:last-child').scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'end'
+                    });
+                """)
+                time.sleep(2)
+                
             last_height = new_height
+            
+            # 항목이 증가했는지 확인
+            if current_count > initial_count:
+                initial_count = current_count
+                print(f"새로운 항목이 로드됨 (총 {current_count}개)")
+            else:
+                print("새로운 항목이 로드되지 않음")
+                
+                # 같은 높이에서 항목이 2번 이상 증가하지 않으면 추가 시도
+                if unchanged_count >= 2:
+                    # 페이지 내 특정 버튼이 있는지 확인 (더보기 버튼 등)
+                    try:
+                        more_button = self.driver.find_element(By.CSS_SELECTOR, "button.more_btn")
+                        more_button.click()
+                        print("더보기 버튼 클릭")
+                        time.sleep(3)
+                        unchanged_count = 0
+                    except:
+                        pass
+                    
+        print(f"스크롤 완료. 총 {current_count}개의 항목 로드됨")
+
+
 
         # 스크롤 작업 완료 후 기본 컨텍스트로 돌아가기
         # self.driver.switch_to.default_content()
@@ -182,6 +261,20 @@ class NaverMapCrawler:
                 print(f"페이지 {page_num} 크롤링 중...")
                 self.scroll_to_load_all_items()
                 # 현재 페이지의 장소 목록 가져오기
+
+                try:
+                    # 현재 페이지가 iframe 내부인지 확인
+                    is_inside_iframe = self.driver.execute_script("return window.self !== window.top")
+                
+                    if is_inside_iframe:
+                        print("현재는 iframe 내부에 있습니다.")
+                    else:
+                        print("현재는 일반 페이지(iframe 외부)에 있습니다.")
+                
+                except Exception as e:
+                    print("iframe 확인 중 오류 발생:", e)
+
+
                 try:
                     # 검색 결과 항목들이 로드될 때까지 대기 - 여러 선택자 시도
                     place_items = None
@@ -191,7 +284,6 @@ class NaverMapCrawler:
                         "li.rTjJo",  # [사용자 편집 가능 - 3] 검색 결과 항목 선택자를 네이버 지도 UI에 맞게 수정
                         "div#_pcmap_list_scroll_container"
                     ]
-                    
                     
                     for selector in item_selectors:
                         try:
@@ -223,7 +315,7 @@ class NaverMapCrawler:
                                 # 클릭이 안 되면 JavaScript로 클릭 시도
                                 self.driver.execute_script("arguments[0].click();", place_item)
 
-                            time.sleep(3)  # 상세 정보 로딩 대기 시간 증가
+                            time.sleep(4)  # 상세 정보 로딩 대기 시간 증가
                             
                             # 상세 정보 수집
                             place_data = self.collect_place_info(region)
@@ -301,6 +393,7 @@ class NaverMapCrawler:
             return total_places
     
     def collect_place_info(self, target_region):
+        time.sleep(2)
         """
         개별 장소의 상세 정보 수집
         
