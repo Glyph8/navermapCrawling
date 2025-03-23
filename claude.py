@@ -57,32 +57,34 @@ class NaverMapCrawler:
     
     def scroll_to_load_all_items(self, max_scrolls=10):
         """
-        모든 검색 결과를 로드하기 위해 스크롤 다운 수행
+        iframe 내부의 모든 검색 결과를 로드하기 위해 스크롤 다운 수행
 
         Args:
             max_scrolls (int): 최대 스크롤 시도 횟수
         """
-        print("스크롤을 내려 모든 검색 결과 로드 중...")
+        print("iframe으로 전환 후 스크롤을 내려 모든 검색 결과 로드 중...")
 
-        # 결과 컨테이너 찾기
-        container_selectors = [
-            # "div#_pcmap_list_scroll_container",
-            # "ul.zRM9F"  # 리스트 컨테이너 선택자
-            "div.XUrfU",
-            "div.Ryr1F"
-        ]
+        # 먼저 iframe으로 전환
+        try:
+            iframe = self.driver.find_element(By.ID, "searchIframe")
+            self.driver.switch_to.frame(iframe)
+            print("iframe으로 전환 성공")
+        except Exception as e:
+            print(f"iframe 전환 실패: {e}")
+            return
 
+        # iframe 내부에서 컨테이너 찾기 - 먼저 XPATH 시도
         container = None
-        for selector in container_selectors:
-            try:
-                container = self.driver.find_element(By.CSS_SELECTOR, selector)
-                if container:
-                    break
-            except:
-                continue
-            
+        try:
+            container = self.driver.find_element(By.CSS_SELECTOR, 'div#_pcmap_list_scroll_container')
+            print("CSS 선택자를 사용하여 컨테이너를 찾았습니다.")
+        except:
+            print("CSS 선택자로도 컨테이너를 찾을 수 없습니다.")
+
         if not container:
             print("스크롤 컨테이너를 찾을 수 없습니다.")
+            # 기본 컨텍스트로 돌아가기
+            self.driver.switch_to.default_content()
             return
 
         last_height = self.driver.execute_script("return arguments[0].scrollHeight", container)
@@ -104,6 +106,10 @@ class NaverMapCrawler:
                 break
 
             last_height = new_height
+
+        # 스크롤 작업 완료 후 기본 컨텍스트로 돌아가기
+        # self.driver.switch_to.default_content()
+        # print("기본 컨텍스트로 복귀")    
 
 
     def search_places(self, region, category):
@@ -273,6 +279,9 @@ class NaverMapCrawler:
                         # page_num이 5이면 마지막 페이지로 판단하고 종료
                         if page_num >= 5:
                             print("마지막 페이지입니다.")
+                                    # 스크롤 작업 완료 후 기본 컨텍스트로 돌아가기
+                            self.driver.switch_to.default_content()
+                            print("기본 컨텍스트로 복귀")    
                             break
                         
                         # 버튼 클릭 후 다음 페이지로 이동
