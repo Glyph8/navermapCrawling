@@ -99,30 +99,10 @@ class NaverMapCrawler:
             search_box.clear()
             search_box.send_keys(search_query)
             
-            # 검색 버튼 클릭 - 여러 선택자 시도
-            search_button = None
-            button_selectors = [
-                "button.btn_search", 
-                "button.kUyBnA", 
-                "button[title='검색']",  # [사용자 편집 가능 - 2] 검색 버튼 선택자를 네이버 지도 UI에 맞게 수정
-                "button.ICazZF"
-            ]
-            
-            for selector in button_selectors:
-                try:
-                    search_button = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                    if search_button:
-                        break
-                except:
-                    continue
-            
-            if not search_button:
-                # 엔터키를 대신 입력하는 대체 방법
-                from selenium.webdriver.common.keys import Keys
-                search_box.send_keys(Keys.RETURN)
-            else:
-                search_button.click()
-            
+            # 엔터키로 검색
+            from selenium.webdriver.common.keys import Keys
+            search_box.send_keys(Keys.RETURN)
+  
         except Exception as e:
             print(f"검색 시도 중 오류: {e}")
             return 0
@@ -133,7 +113,7 @@ class NaverMapCrawler:
         # CSV 파일 생성
         filename = f"{self.results_dir}/{region.replace(' ', '_')}_{category}_{self.timestamp}.csv"
         with open(filename, 'w', newline='', encoding='utf-8-sig') as csvfile:
-            fieldnames = ['장소 이름', '장소 카테고리', '장소 설명', '장소 주소', '영업시간', '분위기', '인기토픽', '찾는목적', '인기연령', '인기성별', '인기시간대']
+            fieldnames = ['장소 이름', '장소 카테고리', '장소 설명', '장소 주소', '분위기', '인기토픽', '찾는목적', '인기연령', '인기성별', '인기시간대']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             
@@ -149,10 +129,9 @@ class NaverMapCrawler:
                     # 검색 결과 항목들이 로드될 때까지 대기 - 여러 선택자 시도
                     place_items = None
                     item_selectors = [
-                        "li.item_search", 
-                        "li.qbGlu", 
-                        "li.gBNIuY",  # [사용자 편집 가능 - 3] 검색 결과 항목 선택자를 네이버 지도 UI에 맞게 수정
-                        "div.result_item"
+                        "li.UEzoS", 
+                        "li.rTjJo",  # [사용자 편집 가능 - 3] 검색 결과 항목 선택자를 네이버 지도 UI에 맞게 수정
+                        "div#_pcmap_list_scroll_container"
                     ]
                     
                     for selector in item_selectors:
@@ -274,37 +253,11 @@ class NaverMapCrawler:
             dict: 수집된 장소 정보
         """
         try:
-            # 홈 탭이 선택되어 있는지 확인하고 선택
-            try:
-                home_tab_selectors = [
-                    "a.tit_home", 
-                    "a.fqtcJG", 
-                    "a[role='tab'][aria-selected='true']",  # [사용자 편집 가능 - 5] 홈 탭 선택자를 네이버 지도 UI에 맞게 수정
-                    "li.tab_home a"
-                ]
-                
-                home_tab = None
-                for selector in home_tab_selectors:
-                    try:
-                        home_tab = self.driver.find_element(By.CSS_SELECTOR, selector)
-                        if home_tab:
-                            break
-                    except:
-                        continue
-                
-                if home_tab:
-                    home_tab.click()
-                    time.sleep(2)
-            except:
-                print("홈 탭 선택 실패 또는 이미 홈 탭이 선택됨")
-            
             # 장소 이름 수집 - 여러 선택자 시도
             place_name = "정보 없음"
             name_selectors = [
-                "span.title_name", 
-                "span.Fc1rA", 
-                "h1.jUSgQV",  # [사용자 편집 가능 - 6] 장소 이름 선택자를 네이버 지도 UI에 맞게 수정
-                "strong.place_name"
+                "span.GHAhO", # [사용자 편집 가능 - 6] 장소 이름 선택자를 네이버 지도 UI에 맞게 수정
+                # "span.title_name", 
             ]
             
             for selector in name_selectors:
@@ -319,10 +272,9 @@ class NaverMapCrawler:
             # 장소 카테고리 수집 - 여러 선택자 시도
             place_category = "정보 없음"
             category_selectors = [
-                "span.category", 
-                "span.DJJvD", 
-                "span.OXiLu",  # [사용자 편집 가능 - 7] 장소 카테고리 선택자를 네이버 지도 UI에 맞게 수정
-                "div.place_category"
+                # "span.category", 
+                "span.lnJFt", # [사용자 편집 가능 - 7] 장소 카테고리 선택자를 네이버 지도 UI에 맞게 수정
+                # "div.place_category"
             ]
             
             for selector in category_selectors:
@@ -337,10 +289,9 @@ class NaverMapCrawler:
             # 장소 설명 수집 - 여러 선택자 시도
             place_description = "정보 없음"
             desc_selectors = [
-                "div.place_section_content", 
-                "div.hEZFIv", 
-                "div.dDctva",  # [사용자 편집 가능 - 8] 장소 설명 선택자를 네이버 지도 UI에 맞게 수정
-                "div.place_detail"
+                # "div.place_section_content", 
+                "div.XtBbS", # [사용자 편집 가능 - 8] 장소 설명 선택자를 네이버 지도 UI에 맞게 수정
+                # "div.place_detail"
             ]
             
             for selector in desc_selectors:
@@ -355,10 +306,10 @@ class NaverMapCrawler:
             # 장소 주소 수집 - 여러 선택자 시도
             place_address = "정보 없음"
             address_selectors = [
-                "span.addr", 
+                # "span.addr", 
                 "span.LDgIH", 
-                "div.IhAeL",  # [사용자 편집 가능 - 9] 장소 주소 선택자를 네이버 지도 UI에 맞게 수정
-                "div.place_address"
+                # "div.IhAeL",  # [사용자 편집 가능 - 9] 장소 주소 선택자를 네이버 지도 UI에 맞게 수정
+                # "div.place_address"
             ]
             
             for selector in address_selectors:
@@ -384,24 +335,23 @@ class NaverMapCrawler:
                 print(f"장소 '{place_name}'의 주소({place_address})가 대상 지역({target_region})에 포함되지 않아 건너뜁니다.")
                 return None
             
-            # 영업시간 수집 - 여러 선택자 시도
-            business_hours = "정보 없음"
-            hours_selectors = [
-                "div.time_box", 
-                "div.QpQFS", 
-                "div.nD8vG",  # [사용자 편집 가능 - 10] 영업시간 선택자를 네이버 지도 UI에 맞게 수정
-                "div.place_hours"
-            ]
-            
-            for selector in hours_selectors:
-                try:
-                    time_elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                    if time_elements:
-                        business_hours = time_elements[0].text.strip()
-                        break
-                except:
-                    continue
-            
+
+            # 데이터랩 더보기 클릭
+            try:
+                while True:
+                    # "더보기" 텍스트가 포함된 span 태그 찾기
+                    more_span = self.driver.find_element(By.XPATH, "//span[contains(text(), '더보기')]")
+
+                    # 요소가 보이면 클릭
+                    if more_span.is_displayed():
+                        more_span.click()
+                        time.sleep(2)  # 데이터 로딩 대기
+                    else:
+                        break  # 요소가 없으면 종료
+                    
+            except Exception as e:
+                print("더보기 클릭 중 오류 발생:", e)                           
+
             # 분위기 수집 - 여러 방법 시도 (XPath와 CSS 선택자 모두 사용)
             atmosphere = "정보 없음"
             try:
@@ -423,7 +373,7 @@ class NaverMapCrawler:
                 
                 # 방법 2: 컨테이너 내에서 키워드 검색
                 if atmosphere == "정보 없음":
-                    containers = self.driver.find_elements(By.CSS_SELECTOR, "div.place_section, div.C6RjW, div.iwXlS")  # [사용자 편집 가능 - 11]
+                    containers = self.driver.find_elements(By.CSS_SELECTOR, "div.sJgQj")  # [사용자 편집 가능 - 11]
                     for container in containers:
                         if "분위기" in container.text:
                             atmosphere = container.text.replace("분위기", "").strip()
@@ -450,7 +400,7 @@ class NaverMapCrawler:
                         continue
                 
                 if popular_topics == "정보 없음":
-                    containers = self.driver.find_elements(By.CSS_SELECTOR, "div.place_section, div.C6RjW, div.iwXlS")  # [사용자 편집 가능 - 12]
+                    containers = self.driver.find_elements(By.CSS_SELECTOR, "div.sJgQj")  # [사용자 편집 가능 - 12]
                     for container in containers:
                         if "인기토픽" in container.text:
                             popular_topics = container.text.replace("인기토픽", "").strip()
@@ -477,7 +427,7 @@ class NaverMapCrawler:
                         continue
                 
                 if visit_purpose == "정보 없음":
-                    containers = self.driver.find_elements(By.CSS_SELECTOR, "div.place_section, div.C6RjW, div.iwXlS")  # [사용자 편집 가능 - 13]
+                    containers = self.driver.find_elements(By.CSS_SELECTOR, "div.sJgQj")  # [사용자 편집 가능 - 13]
                     for container in containers:
                         if "찾는목적" in container.text:
                             visit_purpose = container.text.replace("찾는목적", "").strip()
@@ -489,9 +439,9 @@ class NaverMapCrawler:
             popular_age = "정보 없음"
             try:
                 xpath_patterns = [
-                    "//div[contains(text(), '인기연령')]/following-sibling::div",
-                    "//span[contains(text(), '인기연령')]/following-sibling::span",
-                    "//span[contains(text(), '인기연령')]/parent::*/following-sibling::*"
+                    "//div[contains(text(), '인기순위')]/following-sibling::div",
+                    "//span[contains(text(), '인기순위')]/following-sibling::span",
+                    "//span[contains(text(), '인기순위')]/parent::*/following-sibling::*"
                 ]
                 
                 for xpath in xpath_patterns:
@@ -572,7 +522,6 @@ class NaverMapCrawler:
                 '장소 카테고리': place_category,
                 '장소 설명': place_description.replace('\n', ' '),
                 '장소 주소': place_address,
-                '영업시간': business_hours.replace('\n', ' '),
                 '분위기': atmosphere.replace('\n', ' '),
                 '인기토픽': popular_topics.replace('\n', ' '),
                 '찾는목적': visit_purpose.replace('\n', ' '),
