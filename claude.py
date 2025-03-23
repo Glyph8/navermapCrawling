@@ -55,6 +55,55 @@ class NaverMapCrawler:
         # 현재 시간을 파일명에 사용
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
+    def scroll_to_load_all_items(self, max_scrolls=10):
+        """
+        모든 검색 결과를 로드하기 위해 스크롤 다운 수행
+
+        Args:
+            max_scrolls (int): 최대 스크롤 시도 횟수
+        """
+        print("스크롤을 내려 모든 검색 결과 로드 중...")
+
+        # 결과 컨테이너 찾기
+        container_selectors = [
+            "div#_pcmap_list_scroll_container",
+            "ul.zRM9F"  # 리스트 컨테이너 선택자
+        ]
+
+        container = None
+        for selector in container_selectors:
+            try:
+                container = self.driver.find_element(By.CSS_SELECTOR, selector)
+                if container:
+                    break
+            except:
+                continue
+            
+        if not container:
+            print("스크롤 컨테이너를 찾을 수 없습니다.")
+            return
+
+        last_height = self.driver.execute_script("return arguments[0].scrollHeight", container)
+
+        # 스크롤 수행
+        for scroll in range(max_scrolls):
+            print(f"스크롤 {scroll+1}/{max_scrolls} 수행 중...")
+
+            # 컨테이너 끝까지 스크롤
+            self.driver.execute_script("arguments[0].scrollTo(0, arguments[0].scrollHeight);", container)
+            time.sleep(2)  # 새 결과 로딩 대기
+
+            # 새 높이 확인
+            new_height = self.driver.execute_script("return arguments[0].scrollHeight", container)
+
+            # 이미 모든 항목이 로드된 경우
+            if new_height == last_height:
+                print(f"모든 결과 로드됨 (스크롤 {scroll+1}번 후)")
+                break
+
+            last_height = new_height
+
+
     def search_places(self, region, category):
         """
         네이버 지도에서 지역과 카테고리로 장소 검색
@@ -113,7 +162,7 @@ class NaverMapCrawler:
         # CSV 파일 생성
         filename = f"{self.results_dir}/{region.replace(' ', '_')}_{category}_{self.timestamp}.csv"
         with open(filename, 'w', newline='', encoding='utf-8-sig') as csvfile:
-            fieldnames = ['장소 이름', '장소 카테고리', '장소 설명', '장소 주소', '분위기', '인기토픽', '찾는목적', '인기연령', '인기성별', '인기시간대']
+            fieldnames = ['장소 이름', '장소 카테고리', '장소 설명', '장소 주소', '분위기', '인기토픽', '찾는목적', '인기연령', '인기성별']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             
@@ -123,16 +172,18 @@ class NaverMapCrawler:
             
             while True:
                 print(f"페이지 {page_num} 크롤링 중...")
-                
+                self.scroll_to_load_all_items()
                 # 현재 페이지의 장소 목록 가져오기
                 try:
                     # 검색 결과 항목들이 로드될 때까지 대기 - 여러 선택자 시도
                     place_items = None
                     item_selectors = [
+                        "li.UEzoS.rTjJo",
                         "li.UEzoS", 
                         "li.rTjJo",  # [사용자 편집 가능 - 3] 검색 결과 항목 선택자를 네이버 지도 UI에 맞게 수정
                         "div#_pcmap_list_scroll_container"
                     ]
+                    
                     
                     for selector in item_selectors:
                         try:
@@ -156,9 +207,14 @@ class NaverMapCrawler:
                             # 스크롤해서 항목이 보이게 만들기
                             self.driver.execute_script("arguments[0].scrollIntoView(true);", place_item)
                             time.sleep(1)  # 스크롤 대기 시간 증가
-                            
+
                             # 항목 클릭
-                            place_item.click()
+                            try:
+                                place_item.click()
+                            except:
+                                # 클릭이 안 되면 JavaScript로 클릭 시도
+                                self.driver.execute_script("arguments[0].click();", place_item)
+
                             time.sleep(3)  # 상세 정보 로딩 대기 시간 증가
                             
                             # 상세 정보 수집
@@ -436,86 +492,74 @@ class NaverMapCrawler:
                 pass
             
             # 인기연령 수집
-            popular_age = "정보 없음"
+            popular_age = "정보 없음"            
             try:
-                xpath_patterns = [
-                    "//div[contains(text(), '인기순위')]/following-sibling::div",
-                    "//span[contains(text(), '인기순위')]/following-sibling::span",
-                    "//span[contains(text(), '인기순위')]/parent::*/following-sibling::*"
-                ]
-                
-                for xpath in xpath_patterns:
-                    try:
-                        elements = self.driver.find_elements(By.XPATH, xpath)
-                        if elements:
-                            popular_age = elements[0].text.strip()
-                            break
-                    except:
-                        continue
-                
-                if popular_age == "정보 없음":
-                    containers = self.driver.find_elements(By.CSS_SELECTOR, "div.place_section, div.C6RjW, div.iwXlS")  # [사용자 편집 가능 - 14]
-                    for container in containers:
-                        if "인기연령" in container.text:
-                            popular_age = container.text.replace("인기연령", "").strip()
-                            break
-            except:
-                pass
-            
+                # 모든 '인기순위' 텍스트가 포함된 span 태그 찾기
+                ranking_spans = driver.find_elements(By.XPATH, "//span[contains(text(), '인기순위')]")
+
+                for rank_span in ranking_spans:
+                    # 해당 span 태그가 포함된 부모 요소 찾기
+                    parent_div = rank_span.find_element(By.XPATH, "./parent::div")
+
+                    # 부모 요소 내에서 '1'과 '위'를 포함하는 span이 있는지 확인
+                    one_span = parent_div.find_elements(By.XPATH, ".//span[text()='1']")
+                    rank_word_span = parent_div.find_elements(By.XPATH, ".//span[text()='위']")
+
+                    # '1'과 '위'가 존재하면 인기순위 1위 데이터로 간주
+                    if one_span and rank_word_span:
+                        try:
+                            # 부모 요소 내부의 첫 번째 수치값(span.place_blind) 찾기
+                            value_span = parent_div.find_element(By.XPATH, ".//span[contains(@class, 'place_blind')]")
+                            value_text = value_span.text.strip()  # 숫자값 (예: 36.625%)
+
+                            # 부모 요소 내에서 연령대 정보 찾기 (숫자값 다음 위치)
+                            age_group_span = parent_div.find_element(By.XPATH, "./following-sibling::div")
+                            age_group_text = age_group_span.text.strip()  # 연령대 (예: "10대")
+
+                            # 최종 데이터 저장 (예: "36.625%_10대")
+                            popular_age = (f"{value_text}_{age_group_text}")
+
+                        except Exception as e:
+                            print("수치 또는 연령대 추출 오류:", e)
+
+            except Exception as e:
+                print("데이터 추출 중 오류 발생:", e)
+
+
             # 인기성별 수집
             popular_gender = "정보 없음"
             try:
-                xpath_patterns = [
-                    "//div[contains(text(), '인기성별')]/following-sibling::div",
-                    "//span[contains(text(), '인기성별')]/following-sibling::span",
-                    "//span[contains(text(), '인기성별')]/parent::*/following-sibling::*"
-                ]
-                
-                for xpath in xpath_patterns:
-                    try:
-                        elements = self.driver.find_elements(By.XPATH, xpath)
-                        if elements:
-                            popular_gender = elements[0].text.strip()
-                            break
-                    except:
-                        continue
-                
-                if popular_gender == "정보 없음":
-                    containers = self.driver.find_elements(By.CSS_SELECTOR, "div.place_section, div.C6RjW, div.iwXlS")  # [사용자 편집 가능 - 15]
-                    for container in containers:
-                        if "인기성별" in container.text:
-                            popular_gender = container.text.replace("인기성별", "").strip()
-                            break
+                # 첫 번째 '<tspan class="datalab-unit">%</tspan>' 요소 찾기
+                first_percent = driver.find_element(By.XPATH, "(//tspan[@class='datalab-unit' and text()='%'])[1]")
+            
+                # 첫 번째 '%'의 부모 요소 찾기
+                parent_element = first_percent.find_element(By.XPATH, "./parent::*")
+            
+                # 부모 요소 내부에서 '%' 앞의 텍스트 추출
+                text_before_percent = parent_element.text.replace("%", "").strip()
+                popular_gender = text_before_percent
+       
+                # xpath_patterns = [
+                #     "//tspan[@class='datalab-unit' and text()='%']"
+                # ]           
+                # for xpath in xpath_patterns:
+                #     try:
+                #         elements = self.driver.find_elements(By.XPATH, xpath)
+                #         if elements:
+                #             popular_gender = elements[0].text.strip()
+                #             break
+                #     except:
+                #         continue
+                # if popular_gender == "정보 없음":
+                #     containers = self.driver.find_elements(By.CSS_SELECTOR, "div.place_section, div.C6RjW, div.iwXlS")  # [사용자 편집 가능 - 15]
+                #     for container in containers:
+                #         if "인기성별" in container.text:
+                #             popular_gender = container.text.replace("인기성별", "").strip()
+                #             break
             except:
                 pass
             
-            # 인기시간대 수집
-            popular_time = "정보 없음"
-            try:
-                xpath_patterns = [
-                    "//div[contains(text(), '인기시간대')]/following-sibling::div",
-                    "//span[contains(text(), '인기시간대')]/following-sibling::span",
-                    "//span[contains(text(), '인기시간대')]/parent::*/following-sibling::*"
-                ]
-                
-                for xpath in xpath_patterns:
-                    try:
-                        elements = self.driver.find_elements(By.XPATH, xpath)
-                        if elements:
-                            popular_time = elements[0].text.strip()
-                            break
-                    except:
-                        continue
-                
-                if popular_time == "정보 없음":
-                    containers = self.driver.find_elements(By.CSS_SELECTOR, "div.place_section, div.C6RjW, div.iwXlS")  # [사용자 편집 가능 - 16]
-                    for container in containers:
-                        if "인기시간대" in container.text:
-                            popular_time = container.text.replace("인기시간대", "").strip()
-                            break
-            except:
-                pass
-            
+
             # 수집된 정보 반환
             place_data = {
                 '장소 이름': place_name,
@@ -527,7 +571,6 @@ class NaverMapCrawler:
                 '찾는목적': visit_purpose.replace('\n', ' '),
                 '인기연령': popular_age.replace('\n', ' '),
                 '인기성별': popular_gender.replace('\n', ' '),
-                '인기시간대': popular_time.replace('\n', ' ')
             }
             
             print(f"장소 '{place_name}' 정보 수집 완료")
@@ -602,8 +645,8 @@ if __name__ == "__main__":
               "서울시 광진구 군자동"]
     
     # 크롤링할 카테고리 리스트
-    categories = ["카페", "음식점", "술집", "스터디카페", "보드게임카페", "만화카페", 
-                 "영화관", "공원", "전시관", "미술관", "공연장", "스포츠시설"]
+    categories = ["카페", "스터디카페", "보드게임카페", 
+                 "영화관", "공원","스포츠시설"]
     
     # 크롤러 생성 및 실행
     crawler = NaverMapCrawler()
