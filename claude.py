@@ -520,18 +520,17 @@ class NaverMapCrawler:
                             target_element.click()
                         else:
                             print("요소가 6개보다 적습니다.")   #데이터 랩 없는 경우? 있어도 이쪽으로 넘어가는데?
+                        time.sleep(0.5)
+                        print(f"요소 개수 : {len(datalab_datail_element)}")
+                        for i in range(len(datalab_datail_element)):
+                            print(f"{i}번 요소 : {datalab_datail_element[i]}")
+                            print()
+                            if datalab_datail_element[i].text.strip() == "더보기":
+                                datalab_datail_element[i].click()
+                                print(f"더보기와 일치한 {i}번째 요소 클릭시도했음")
+                                break  # 클릭 후 루프 종료
 
-                            for i in len(datalab_datail_element):
-                                print(f"{i}번 요소 : {datalab_datail_element[i].text}")     
-                                if(datalab_datail_element[i].text == "더보기"):
-                                    datalab_datail_element[i].click()
-
-                        # datalab_datail_element = self.driver.find_element(By.CSS_SELECTOR, datalab_datail_css)
-                        # datalab_datail_element.click()
                     except:
-                        # print("datalab 더보기 버튼 강제 클릭")
-                        # self.driver.execute_script("arguments[0].click();", datalab_datail_element)
-                        # print("datalab 더보기 버튼 강제 클릭 실패, 정보 수집 중단")
                         print("DataLab 데이터가 없는 경우로 판단, DataLab 정보 생략")
                         # 먼저 기본 문서로 돌아오기
                         self.driver.switch_to.default_content()  
@@ -553,7 +552,6 @@ class NaverMapCrawler:
                         return place_data   
                         
                         
-
             except Exception as e:
                 print(f"Error: {e}")
                 return "정보 없음"        
@@ -728,7 +726,7 @@ class NaverMapCrawler:
             ]
 
             # 변수 초기화
-            text_value = "정보 없음"
+            male_text_value = "정보 없음"
 
             # 선택자 순차적으로 시도
             for by, selector in selectors:
@@ -752,7 +750,6 @@ class NaverMapCrawler:
                 '분위기': atmosphere.replace('\n', ' '),
                 '인기토픽': popular_topics.replace('\n', ' '),
                 '찾는목적': visit_purpose.replace('\n', ' '),
-                # '인기연령': popular_age.replace('\n', ' '),
                 '인기연령10대': popular_age10.replace('\n', ' '),
                 '인기연령20대': popular_age20.replace('\n', ' '),
                 '인기연령30대': popular_age30.replace('\n', ' '),
