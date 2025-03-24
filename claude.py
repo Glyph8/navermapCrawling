@@ -507,7 +507,8 @@ class NaverMapCrawler:
 
 
                 datalab_detail_xpath = '//*[@id="app-root"]/div/div/div/div[6]/div/div[8]/div[2]/div/a'
-                datalab_datail_css = "app-root > div > div > div > div:nth-child(6) > div > div.place_section.I_y6k > div.NSTUp > div > a > span"
+                # datalab_datail_css = "app-root > div > div > div > div:nth-child(6) > div > div.place_section.I_y6k > div.NSTUp > div > a > span"
+                datalab_datail_css = "span.fvwqf[6]"
 
                 try:
                     datalab_detail_element = self.driver.find_element(By.XPATH, datalab_detail_xpath)
@@ -517,8 +518,15 @@ class NaverMapCrawler:
                 except Exception as e:
                     try:
                         print("XPath 실패 시 CSS_SELECTOR 시도")
-                        datalab_datail_element = self.driver.find_element(By.CSS_SELECTOR, datalab_datail_css)
-                        datalab_datail_element.click()
+                        datalab_datail_element = self.driver.find_elements(By.CLASS_NAME, "fvwqf")
+                        if len(datalab_datail_element) >= 6:
+                            target_element = datalab_datail_element[5]  # 6번째 요소
+                            print("6번째 span 태그 내용:", target_element.text)
+                            target_element.click()
+                        else:
+                            print("요소가 6개보다 적습니다.")                        
+                        # datalab_datail_element = self.driver.find_element(By.CSS_SELECTOR, datalab_datail_css)
+                        # datalab_datail_element.click()
                     except:
                         print("datalab 더보기 버튼 강제 클릭")
                         self.driver.execute_script("arguments[0].click();", datalab_datail_element)
@@ -527,33 +535,6 @@ class NaverMapCrawler:
             except Exception as e:
                 print(f"Error: {e}")
                 return "정보 없음"        
-            #####
-
-            # 데이터랩 더보기 클릭
-            #app-root > div > div > div > div:nth-child(6) > div > div.place_section.I_y6k > div.NSTUp > div > a > span
-            #//*[@id="app-root"]/div/div/div/div[6]/div/div[8]/div[2]/div/a/span
-            # try:
-            #     datalab_detail = "정보 없음"
-            #     datalab_datail_xpath = '//*[@id="app-root"]/div/div/div/div[6]/div/div[8]/div[2]/div/a/span'
-            #     datalab_datail_css = "app-root > div > div > div > div:nth-child(6) > div > div.place_section.I_y6k > div.NSTUp > div > a > span"
-
-            #     try:
-            #         datalab_datail_element = self.driver.find_element(By.XPATH, datalab_datail_xpath)
-            #         self.driver.execute_script("arguments[0].scrollIntoView(true);", datalab_datail_element)
-            #         datalab_datail_element.click()
-            #     except:
-            #         try:
-            #             # XPath 실패 시 CSS_SELECTOR 시도
-            #             datalab_datail_element = self.driver.find_element(By.CSS_SELECTOR, css_address)
-            #             datalab_datail_element.click()
-            #         except:
-            #             print("datalab 더보기 버튼 강제 클릭")
-            #             self.driver.execute_script("arguments[0].click();", datalab_datail_element)
-            #             pass
-            # except Exception as e:
-            #     print(f"Error: {e}")
-            #     return "정보 없음"     
-                   
 
             # 분위기 수집 - 여러 방법 시도 (XPath와 CSS 선택자 모두 사용)
             atmosphere = "정보 없음"
