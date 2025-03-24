@@ -237,7 +237,7 @@ class NaverMapCrawler:
         # CSV 파일 생성
         filename = f"{self.results_dir}/{region.replace(' ', '_')}_{category}_{self.timestamp}.csv"
         with open(filename, 'w', newline='', encoding='utf-8-sig') as csvfile:
-            fieldnames = ['장소 이름', '장소 카테고리', '장소 주소', '분위기', '인기토픽', '찾는목적', '인기연령', '인기성별']
+            fieldnames = ['장소 평점', '장소 이름', '장소 카테고리', '장소 주소', '분위기', '인기토픽', '찾는목적', '인기연령10대', '인기연령20대','인기연령30대','인기연령40대','인기연령50대','인기연령60대', '인기성별']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             
@@ -291,11 +291,27 @@ class NaverMapCrawler:
                         try:
                             # 장소 항목 클릭
                             print(f"장소 {idx+1}/{len(place_items)} 정보 수집 중...")
-                            
+                            rating = "null"
                             # 스크롤해서 항목이 보이게 만들기
                             self.driver.execute_script("arguments[0].scrollIntoView(true);", place_item)
                             time.sleep(1)  # 스크롤 대기 시간 증가
 
+                            try:
+                                # '별점' 태그를 먼저 찾고, 그 뒤에 있는 요소를 찾기
+                                print("평점찾기 - '별점' 뒤 값 찾기")
+                                rating_label = self.driver.find_element(By.XPATH, '//*[contains(text(), "별점")]')
+                                rating_element = rating_label.find_element(By.XPATH, './following-sibling::span')
+                                rating = rating_element.text if rating_element.text else "별점 없음"
+                            except:
+                                try:
+                                    # XPath 직접 활용하여 시도 (2차 시도)
+                                    print("평점찾기 - xpath로 값 찾기")
+                                    rating_element = self.driver.find_element(By.XPATH, '//*[@id="_pcmap_list_scroll_container"]/ul/li[67]/div[1]/div[1]/div/span[2]')
+                                    rating = rating_element.text if rating_element.text else "별점 없음"
+                                except:
+                                    print("평점찾기 - 실패 - 평점 없음 처리")
+                                    rating = "별점 없음"
+                            
                             # 항목 클릭
                             try:
                                 # place_item.click()
@@ -307,9 +323,9 @@ class NaverMapCrawler:
                                 self.driver.execute_script("arguments[0].click();", text_element)
 
                             time.sleep(4)  # 상세 정보 로딩 대기 시간 증가
-                            
+
                             # 상세 정보 수집
-                            place_data = self.collect_place_info(region)
+                            place_data = self.collect_place_info(region, rating)
                             
                             # 지역이 일치하는 장소만 저장
                             if place_data:
@@ -393,7 +409,7 @@ class NaverMapCrawler:
             print(f"{region} {category} 크롤링 완료: {total_places}개 장소 수집")
             return total_places
     
-    def collect_place_info(self, target_region):
+    def collect_place_info(self, target_region, rating):
         """
         개별 장소의 상세 정보 수집
         
@@ -416,6 +432,8 @@ class NaverMapCrawler:
             print(f"entry iframe 전환 실패: {e}")
             return
 
+        # 장소 평점 저장
+        place_rating = rating
 
         try:
             # 장소 이름 수집 - XPath 사용
@@ -499,12 +517,8 @@ class NaverMapCrawler:
                     last_height = new_height
 
                 # 데이터랩 더보기 버튼 찾기
-                #//*[@id="app-root"]/div/div/div/div[6]/div/div[7]/div[2]/div/a
-                #//*[@id="app-root"]/div/div/div/div[6]/div/div[7]/div[2]/div/a/span[2] 리뷰더보기임;;
 
-                #//*[@id="app-root"]/div/div/div/div[6]/div/div[8]/div[2]/div/a
-                #//*[@id="app-root"]/div/div/div/div[6]/div/div[8]/div[2]/div/a
-
+                # 데이터랩 안보이는 경우 체크가 필요. 광고 항목에는 안뜨는 것 같기도? 없으면 넘겨야할듯
 
                 datalab_detail_xpath = '//*[@id="app-root"]/div/div/div/div[6]/div/div[8]/div[2]/div/a'
                 # datalab_datail_css = "app-root > div > div > div > div:nth-child(6) > div > div.place_section.I_y6k > div.NSTUp > div > a > span"
@@ -517,30 +531,61 @@ class NaverMapCrawler:
                     datalab_detail_element.click()
                 except Exception as e:
                     try:
-                        print("XPath 실패 시 CSS_SELECTOR 시도")
+                        print("DataLab 더보기 버튼 XPath 실패, CSS_SELECTOR 시도")
                         datalab_datail_element = self.driver.find_elements(By.CLASS_NAME, "fvwqf")
-                        if len(datalab_datail_element) >= 6:
+                        if len(datalab_datail_element) >= 6: #데이터 랩 없는 경우 6개인듯?
                             target_element = datalab_datail_element[5]  # 6번째 요소
                             print("6번째 span 태그 내용:", target_element.text)
                             target_element.click()
                         else:
-                            print("요소가 6개보다 적습니다.")                        
+                            print("요소가 6개보다 적습니다.")   #데이터 랩 없는 경우? 있어도 이쪽으로 넘어가는데?
+
+                            print(f"0번 요소 : {datalab_datail_element[0].text}")     
+                            print(f"1번 요소 : {datalab_datail_element[1].text}")
+                            print(f"2번 요소 : {datalab_datail_element[2].text}")            
+                            print(f"3번 요소 : {datalab_datail_element[3].text}")
+                            print(f"4번 요소 : {datalab_datail_element[4].text}")
+
                         # datalab_datail_element = self.driver.find_element(By.CSS_SELECTOR, datalab_datail_css)
                         # datalab_datail_element.click()
                     except:
-                        print("datalab 더보기 버튼 강제 클릭")
-                        self.driver.execute_script("arguments[0].click();", datalab_datail_element)
-                        pass
+                        # print("datalab 더보기 버튼 강제 클릭")
+                        # self.driver.execute_script("arguments[0].click();", datalab_datail_element)
+                        # print("datalab 더보기 버튼 강제 클릭 실패, 정보 수집 중단")
+                        print("DataLab 데이터가 없는 경우로 판단, DataLab 정보 생략")
+                        # 먼저 기본 문서로 돌아오기
+                        self.driver.switch_to.default_content()  
+                        place_data = {
+                            '장소 평점': place_rating,
+                            '장소 이름': place_name,
+                            '장소 카테고리': place_category,
+                            '장소 주소': place_address,
+                            '분위기': "정보 없음",
+                            '인기토픽': "정보 없음",
+                            '찾는목적': "정보 없음",
+                            '인기연령10대': "정보 없음",
+                            '인기연령20대': "정보 없음",
+                            '인기연령30대': "정보 없음",
+                            '인기연령40대': "정보 없음",
+                            '인기연령50대': "정보 없음",
+                            '인기연령60대': "정보 없음",
+                            '인기성별': "정보 없음",
+                        }
+                        return place_data   
+                        
 
             except Exception as e:
                 print(f"Error: {e}")
                 return "정보 없음"        
+            time.sleep(2) #DataLab 더보기 정보 로딩 대기
 
             # 분위기 수집 - 여러 방법 시도 (XPath와 CSS 선택자 모두 사용)
             atmosphere = "정보 없음"
+            # //*[@id="app-root"]/div/div/div/div[6]/div/div[9]/div[1]/div[1]/div/ul/li[1]/span[2]
             try:
                 # 방법 1: XPath로 라벨 뒤의 내용 찾기
                 xpath_patterns = [
+                    '//*[@id="app-root"]/div/div/div/div[6]/div/div[9]/div[1]/div[1]/div/ul/li[1]/span[2]',
                     "//div[contains(text(), '분위기')]/following-sibling::div",
                     "//span[contains(text(), '분위기')]/following-sibling::span",
                     "//span[contains(text(), '분위기')]/parent::*/following-sibling::*"
@@ -551,6 +596,7 @@ class NaverMapCrawler:
                         elements = self.driver.find_elements(By.XPATH, xpath)
                         if elements:
                             atmosphere = elements[0].text.strip()
+                            print(f"분위기 출력: {atmosphere}")
                             break
                     except:
                         continue
@@ -566,9 +612,11 @@ class NaverMapCrawler:
                 pass
             
             # 인기토픽 수집
+            # //*[@id="app-root"]/div/div/div/div[6]/div/div[9]/div[1]/div[1]/div/ul/li[2]/span[2]
             popular_topics = "정보 없음"
             try:
                 xpath_patterns = [
+                    '//*[@id="app-root"]/div/div/div/div[6]/div/div[9]/div[1]/div[1]/div/ul/li[2]/span[2]',
                     "//div[contains(text(), '인기토픽')]/following-sibling::div",
                     "//span[contains(text(), '인기토픽')]/following-sibling::span",
                     "//span[contains(text(), '인기토픽')]/parent::*/following-sibling::*"
@@ -579,6 +627,7 @@ class NaverMapCrawler:
                         elements = self.driver.find_elements(By.XPATH, xpath)
                         if elements:
                             popular_topics = elements[0].text.strip()
+                            print(f"인기토픽 출력 : {popular_topics}")
                             break
                     except:
                         continue
@@ -593,9 +642,11 @@ class NaverMapCrawler:
                 pass
             
             # 찾는목적 수집
+            # //*[@id="app-root"]/div/div/div/div[6]/div/div[9]/div[1]/div[1]/div/ul/li[3]/span[2]
             visit_purpose = "정보 없음"
             try:
                 xpath_patterns = [
+                    '//*[@id="app-root"]/div/div/div/div[6]/div/div[9]/div[1]/div[1]/div/ul/li[3]/span[2]',
                     "//div[contains(text(), '찾는목적')]/following-sibling::div",
                     "//span[contains(text(), '찾는목적')]/following-sibling::span",
                     "//span[contains(text(), '찾는목적')]/parent::*/following-sibling::*"
@@ -606,6 +657,7 @@ class NaverMapCrawler:
                         elements = self.driver.find_elements(By.XPATH, xpath)
                         if elements:
                             visit_purpose = elements[0].text.strip()
+                            print(f"찾는목적 출력 : {visit_purpose}")
                             break
                     except:
                         continue
@@ -620,83 +672,114 @@ class NaverMapCrawler:
                 pass
             
             # 인기연령 수집
-            popular_age = "정보 없음"            
-            try:
-                # 모든 '인기순위' 텍스트가 포함된 span 태그 찾기
-                ranking_spans = self.driver.find_elements(By.XPATH, "//span[contains(text(), '인기순위')]")
 
-                for rank_span in ranking_spans:
-                    # 해당 span 태그가 포함된 부모 요소 찾기
-                    parent_div = rank_span.find_element(By.XPATH, "./parent::div")
+            # 연령대별 XPATH 및 CSS 선택자 매핑
+            age_selectors = {
+                "popular_age10": {
+                    # "xpath": '//*[@id="bar_chart_container"]/ul/li[1]/div[1]/span/span[1]',
+                    "xpath": '//*[@id="bar_chart_container"]/ul/li[1]/div[1]/span/span',
+                    "css": "#bar_chart_container > ul > li:nth-child(1) > div.VIe0v > span > span:nth-child(1)"
+                },
+                "popular_age20": {
+                    "xpath": '//*[@id="bar_chart_container"]/ul/li[2]/div[1]/span/span[1]',
+                    # "xpath": '//*[@id="bar_chart_container"]/ul/li[2]/div[1]/span/span[1]',
+                    "css": "#bar_chart_container > ul > li:nth-child(2) > div.VIe0v > span > span:nth-child(1)",
+                    # "css": "#bar_chart_container > ul > li:nth-child(2) > div.VIe0v > span > span:nth-child(1)"
+                },
+                "popular_age30": {
+                    "xpath": '//*[@id="bar_chart_container"]/ul/li[3]/div[1]/span/span[1]',
+                    "css": "#bar_chart_container > ul > li:nth-child(3) > div.VIe0v > span > span:nth-child(1)"
+                },
+                "popular_age40": {
+                    "xpath": '//*[@id="bar_chart_container"]/ul/li[4]/div[1]/span/span[1]',
+                    "css": "#bar_chart_container > ul > li:nth-child(4) > div.VIe0v > span > span:nth-child(1)"
+                },
+                "popular_age50": {
+                    "xpath": '//*[@id="bar_chart_container"]/ul/li[5]/div[1]/span/span[1]',
+                    "css": "#bar_chart_container > ul > li:nth-child(5) > div.VIe0v > span > span:nth-child(1)"
+                },
+                "popular_age60": {
+                    "xpath": '//*[@id="bar_chart_container"]/ul/li[6]/div[1]/span/span',
+                    "css": "#bar_chart_container > ul > li:nth-child(6) > div.VIe0v > span > span"
+                }
+            }            
+            # 연령별 변수 선언 및 데이터 할당
+            popular_age10 = popular_age20 = popular_age30 = popular_age40 = popular_age50 = popular_age60 = "정보 없음"
 
-                    # 부모 요소 내에서 '1'과 '위'를 포함하는 span이 있는지 확인
-                    one_span = parent_div.find_elements(By.XPATH, ".//span[text()='1']")
-                    rank_word_span = parent_div.find_elements(By.XPATH, ".//span[text()='위']")
+            for age_group, selectors in age_selectors.items():
+                try:
+                    # 먼저 XPATH로 시도
+                    age_element = self.driver.find_element(By.XPATH, selectors["xpath"])
+                    age_value = age_element.text.strip()
+                except:
+                    try:
+                        # XPATH 실패 시 CSS_SELECTOR 시도
+                        age_element = self.driver.find_element(By.CSS_SELECTOR, selectors["css"])
+                        age_value = age_element.text.strip()
+                    except:
+                        print(f"{age_group} 데이터를 찾을 수 없습니다.")
+                        age_value = "정보 없음"
 
-                    # '1'과 '위'가 존재하면 인기순위 1위 데이터로 간주
-                    if one_span and rank_word_span:
-                        try:
-                            # 부모 요소 내부의 첫 번째 수치값(span.place_blind) 찾기
-                            value_span = parent_div.find_element(By.XPATH, ".//span[contains(@class, 'place_blind')]")
-                            value_text = value_span.text.strip()  # 숫자값 (예: 36.625%)
+                # 변수에 값 저장
+                if age_group == "popular_age10":
+                    popular_age10 = age_value
+                elif age_group == "popular_age20":
+                    popular_age20 = age_value
+                elif age_group == "popular_age30":
+                    popular_age30 = age_value
+                elif age_group == "popular_age40":
+                    popular_age40 = age_value
+                elif age_group == "popular_age50":
+                    popular_age50 = age_value
+                elif age_group == "popular_age60":
+                    popular_age60 = age_value
 
-                            # 부모 요소 내에서 연령대 정보 찾기 (숫자값 다음 위치)
-                            age_group_span = parent_div.find_element(By.XPATH, "./following-sibling::div")
-                            age_group_text = age_group_span.text.strip()  # 연령대 (예: "10대")
-
-                            # 최종 데이터 저장 (예: "36.625%_10대")
-                            popular_age = (f"{value_text}_{age_group_text}")
-
-                        except Exception as e:
-                            print("수치 또는 연령대 추출 오류:", e)
-
-            except Exception as e:
-                print("데이터 추출 중 오류 발생:", e)
-
-
+            # 결과 출력
+            print("10대:", popular_age10)
+         
             # 인기성별 수집
             popular_gender = "정보 없음"
-            try:
-                # 첫 번째 '<tspan class="datalab-unit">%</tspan>' 요소 찾기
-                first_percent = self.driver.find_element(By.XPATH, "(//tspan[@class='datalab-unit' and text()='%'])[1]")
             
-                # 첫 번째 '%'의 부모 요소 찾기
-                parent_element = first_percent.find_element(By.XPATH, "./parent::*")
-            
-                # 부모 요소 내부에서 '%' 앞의 텍스트 추출
-                text_before_percent = parent_element.text.replace("%", "").strip()
-                popular_gender = text_before_percent
-       
-                # xpath_patterns = [
-                #     "//tspan[@class='datalab-unit' and text()='%']"
-                # ]           
-                # for xpath in xpath_patterns:
-                #     try:
-                #         elements = self.driver.find_elements(By.XPATH, xpath)
-                #         if elements:
-                #             popular_gender = elements[0].text.strip()
-                #             break
-                #     except:
-                #         continue
-                # if popular_gender == "정보 없음":
-                #     containers = self.driver.find_elements(By.CSS_SELECTOR, "div.place_section, div.C6RjW, div.iwXlS")  # [사용자 편집 가능 - 15]
-                #     for container in containers:
-                #         if "인기성별" in container.text:
-                #             popular_gender = container.text.replace("인기성별", "").strip()
-                #             break
-            except:
-                pass
-            
+            # 선택자 리스트 (우선순위대로 시도)
+            selectors = [
+                (By.CSS_SELECTOR, "#_datalab_chart_donut1_0 > svg > g:nth-child(2) > g.c3-chart > g.c3-chart-arcs > g.c3-chart-arc.c3-target.c3-target-male > text:nth-child(3)"),
+                (By.XPATH, '//*[@id="_datalab_chart_donut1_0"]/svg/g[1]/g[3]/g[4]/g[2]/text[2]'),
+                (By.XPATH, '//*[@id="_datalab_chart_donut1_0"]/svg/g[1]/g[3]/g[4]/g[2]/text[1]'),
+            ]
+
+            # 변수 초기화
+            text_value = "정보 없음"
+
+            # 선택자 순차적으로 시도
+            for by, selector in selectors:
+                try:
+                    print("성별 비율 선택자 접근 시행")
+                    male_element = self.driver.find_element(by, selector)
+                    male_text_value = male_element.text.strip()
+                    break  # 성공하면 루프 탈출
+                except:
+                    continue  # 실패하면 다음 선택자로 시도
+                
+            # 결과 출력
+            print("남자 성별비율 출력 :", male_text_value)
+            popular_gender = male_text_value
 
             # 수집된 정보 반환
             place_data = {
+                '장소 평점': place_rating,
                 '장소 이름': place_name,
                 '장소 카테고리': place_category,
                 '장소 주소': place_address,
                 '분위기': atmosphere.replace('\n', ' '),
                 '인기토픽': popular_topics.replace('\n', ' '),
                 '찾는목적': visit_purpose.replace('\n', ' '),
-                '인기연령': popular_age.replace('\n', ' '),
+                # '인기연령': popular_age.replace('\n', ' '),
+                '인기연령10대': popular_age10.replace('\n', ' '),
+                '인기연령20대': popular_age20.replace('\n', ' '),
+                '인기연령30대': popular_age30.replace('\n', ' '),
+                '인기연령40대': popular_age40.replace('\n', ' '),
+                '인기연령50대': popular_age50.replace('\n', ' '),
+                '인기연령60대': popular_age60.replace('\n', ' '),
                 '인기성별': popular_gender.replace('\n', ' '),
             }
             
