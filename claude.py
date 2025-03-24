@@ -68,9 +68,9 @@ class NaverMapCrawler:
         try:
             iframe = self.driver.find_element(By.ID, "searchIframe")
             self.driver.switch_to.frame(iframe)
-            print("iframe으로 전환 성공")
+            print("search iframe으로 전환 성공")
         except Exception as e:
-            print(f"iframe 전환 실패: {e}")
+            print(f"search iframe 전환 실패: {e}")
             return
 
         # iframe 내부에서 컨테이너 찾기 - 먼저 XPATH 시도
@@ -107,15 +107,6 @@ class NaverMapCrawler:
 
             # 새 높이 확인
             new_height = self.driver.execute_script("return arguments[0].scrollHeight", container)
-
-
-
-
-            # 이미 모든 항목이 로드된 경우
-            # if new_height == last_height:
-            #     print(f"모든 결과 로드됨 (스크롤 {scroll+1}번 후)")
-            #     break
-            # last_height = new_height
 
             # 현재 항목 수 확인
             current_items = self.driver.find_elements(By.CSS_SELECTOR, "li.UEzoS")
@@ -184,12 +175,9 @@ class NaverMapCrawler:
                     
         print(f"스크롤 완료. 총 {current_count}개의 항목 로드됨")
 
-
-
         # 스크롤 작업 완료 후 기본 컨텍스트로 돌아가기
         # self.driver.switch_to.default_content()
         # print("기본 컨텍스트로 복귀")    
-
 
     def search_places(self, region, category):
         """
@@ -249,7 +237,7 @@ class NaverMapCrawler:
         # CSV 파일 생성
         filename = f"{self.results_dir}/{region.replace(' ', '_')}_{category}_{self.timestamp}.csv"
         with open(filename, 'w', newline='', encoding='utf-8-sig') as csvfile:
-            fieldnames = ['장소 이름', '장소 카테고리', '장소 설명', '장소 주소', '분위기', '인기토픽', '찾는목적', '인기연령', '인기성별']
+            fieldnames = ['장소 이름', '장소 카테고리', '장소 주소', '분위기', '인기토픽', '찾는목적', '인기연령', '인기성별']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             
@@ -310,10 +298,13 @@ class NaverMapCrawler:
 
                             # 항목 클릭
                             try:
-                                place_item.click()
+                                # place_item.click()
+                                text_element = place_item.find_element(By.TAG_NAME, "span")  # 텍스트가 있는 span 찾기
+                                text_element.click()  # 텍스트 요소 클릭
                             except:
                                 # 클릭이 안 되면 JavaScript로 클릭 시도
-                                self.driver.execute_script("arguments[0].click();", place_item)
+                                # self.driver.execute_script("arguments[0].click();", place_item)
+                                self.driver.execute_script("arguments[0].click();", text_element)
 
                             time.sleep(4)  # 상세 정보 로딩 대기 시간 증가
                             
@@ -326,7 +317,17 @@ class NaverMapCrawler:
                                 total_places += 1
                             
                             # 리스트 화면으로 돌아가기
-                            self.driver.back()
+                            # self.driver.back()
+
+                            # 다시 search iframe으로 전환
+                            try:
+                                iframe = self.driver.find_element(By.ID, "searchIframe")
+                                self.driver.switch_to.frame(iframe)
+                                print("search iframe으로 전환 성공")
+                            except Exception as e:
+                                print(f"search iframe 전환 실패: {e}")
+                                return                            
+
                             time.sleep(3)  # 뒤로가기 후 대기 시간 증가
                             
                             # 검색 결과 재로딩 대기
@@ -393,7 +394,6 @@ class NaverMapCrawler:
             return total_places
     
     def collect_place_info(self, target_region):
-        time.sleep(2)
         """
         개별 장소의 상세 정보 수집
         
@@ -403,75 +403,70 @@ class NaverMapCrawler:
         Returns:
             dict: 수집된 장소 정보
         """
+        
+        # 먼저 기본 문서로 돌아오기
+        self.driver.switch_to.default_content()  
+
+        #entry iframe으로 전환
         try:
-            # 장소 이름 수집 - 여러 선택자 시도
+            iframe = self.driver.find_element(By.ID, "entryIframe")
+            self.driver.switch_to.frame(iframe)
+            print("entry iframe으로 전환 성공")
+        except Exception as e:
+            print(f"entry iframe 전환 실패: {e}")
+            return
+
+
+        try:
+            # 장소 이름 수집 - XPath 사용
             place_name = "정보 없음"
-            name_selectors = [
-                "span.GHAhO", # [사용자 편집 가능 - 6] 장소 이름 선택자를 네이버 지도 UI에 맞게 수정
-                # "span.title_name", 
-            ]
+            xpath_selector = '//*[@id="_title"]/div/span[1]'
             
-            for selector in name_selectors:
-                try:
-                    name_element = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    if name_element:
-                        place_name = name_element.text.strip()
-                        break
-                except:
-                    continue
+            try:
+                name_element = self.driver.find_element(By.XPATH, xpath_selector)
+                if name_element:
+                    place_name = name_element.text.strip()
+            except:
+                pass        
             
-            # 장소 카테고리 수집 - 여러 선택자 시도
+            # 장소 카테고리 수집 - 여러 선택자 시도 //*[@id="_title"]/div/span[2]
             place_category = "정보 없음"
-            category_selectors = [
-                # "span.category", 
-                "span.lnJFt", # [사용자 편집 가능 - 7] 장소 카테고리 선택자를 네이버 지도 UI에 맞게 수정
-                # "div.place_category"
-            ]
-            
-            for selector in category_selectors:
-                try:
-                    category_element = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    if category_element:
-                        place_category = category_element.text.strip()
-                        break
-                except:
-                    continue
-            
-            # 장소 설명 수집 - 여러 선택자 시도
-            place_description = "정보 없음"
-            desc_selectors = [
-                # "div.place_section_content", 
-                "div.XtBbS", # [사용자 편집 가능 - 8] 장소 설명 선택자를 네이버 지도 UI에 맞게 수정
-                # "div.place_detail"
-            ]
-            
-            for selector in desc_selectors:
-                try:
-                    desc_element = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    if desc_element:
-                        place_description = desc_element.text.strip()
-                        break
-                except:
-                    continue
-            
+            category_xpath_selector = '//*[@id="_title"]/div/span[2]'
+
+            try:
+                category_element = self.driver.find_element(By.XPATH, category_xpath_selector)
+                if category_element:
+                    place_category = category_element.text.strip()
+                    print(f"장소 카테고리 출력 : {place_category}")                    
+            except:
+                pass        
+   
             # 장소 주소 수집 - 여러 선택자 시도
-            place_address = "정보 없음"
-            address_selectors = [
-                # "span.addr", 
-                "span.LDgIH", 
-                # "div.IhAeL",  # [사용자 편집 가능 - 9] 장소 주소 선택자를 네이버 지도 UI에 맞게 수정
-                # "div.place_address"
-            ]
-            
-            for selector in address_selectors:
+            try:
+                # 장소 주소 수집 - XPath 사용
+                place_address = "정보 없음"
+                xpath_address = '//*[@id="app-root"]/div/div/div/div[5]/div/div[2]/div[1]/div/div[1]/div/a/span[1]'
+                css_address = "#app-root > div > div > div > div:nth-child(5) > div > div:nth-child(2) > div.place_section_content > div > div.O8qbU.tQY7D > div > a > span.LDgIH"
+
                 try:
-                    address_elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                    if address_elements:
-                        place_address = address_elements[0].text.strip()
-                        break
+                    address_element = self.driver.find_element(By.XPATH, xpath_address)
+                    self.driver.execute_script("arguments[0].scrollIntoView(true);", address_element)
+
+                    if address_element:
+                        place_address = address_element.text.strip()
+                        print("주소 출력:", place_address)
                 except:
-                    continue
-            
+                    try:
+                        # XPath 실패 시 CSS_SELECTOR 시도
+                        address_element = self.driver.find_element(By.CSS_SELECTOR, css_address)
+                        place_address = address_element.text.strip()
+                    except:
+                        pass
+                        
+            except Exception as e:
+                print(f"Error: {e}")
+                return "정보 없음"            
+                    
             # 주소에 대상 지역이 포함되어 있는지 확인
             region_keywords = target_region.split()
             region_match = False
@@ -487,21 +482,78 @@ class NaverMapCrawler:
                 return None
             
 
-            # 데이터랩 더보기 클릭
-            try:
-                while True:
-                    # "더보기" 텍스트가 포함된 span 태그 찾기
-                    more_span = self.driver.find_element(By.XPATH, "//span[contains(text(), '더보기')]")
 
-                    # 요소가 보이면 클릭
-                    if more_span.is_displayed():
-                        more_span.click()
-                        time.sleep(2)  # 데이터 로딩 대기
-                    else:
-                        break  # 요소가 없으면 종료
-                    
+            # 데이터랩 항목까지 스크롤을 내려야 함!
+            try:
+                # 스크롤을 여러 번 내리면서 동적 요소 로딩을 유도
+                scroll_attempts = 10  # 최대 10번 시도
+                last_height = self.driver.execute_script("return document.body.scrollHeight")
+
+                for _ in range(scroll_attempts):
+                    self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(1.5)  # AJAX 로딩을 기다리는 시간
+
+                    new_height = self.driver.execute_script("return document.body.scrollHeight")
+                    if new_height == last_height:
+                        break  # 더 이상 스크롤이 변하지 않으면 중지
+                    last_height = new_height
+
+                # 데이터랩 더보기 버튼 찾기
+                #//*[@id="app-root"]/div/div/div/div[6]/div/div[7]/div[2]/div/a
+                #//*[@id="app-root"]/div/div/div/div[6]/div/div[7]/div[2]/div/a/span[2] 리뷰더보기임;;
+
+                #//*[@id="app-root"]/div/div/div/div[6]/div/div[8]/div[2]/div/a
+                #//*[@id="app-root"]/div/div/div/div[6]/div/div[8]/div[2]/div/a
+
+
+                datalab_detail_xpath = '//*[@id="app-root"]/div/div/div/div[6]/div/div[8]/div[2]/div/a'
+                datalab_datail_css = "app-root > div > div > div > div:nth-child(6) > div > div.place_section.I_y6k > div.NSTUp > div > a > span"
+
+                try:
+                    datalab_detail_element = self.driver.find_element(By.XPATH, datalab_detail_xpath)
+                    self.driver.execute_script("arguments[0].scrollIntoView(true);", datalab_detail_element)
+                    time.sleep(0.5)  # 안정적인 클릭을 위해 대기
+                    datalab_detail_element.click()
+                except Exception as e:
+                    try:
+                        print("XPath 실패 시 CSS_SELECTOR 시도")
+                        datalab_datail_element = self.driver.find_element(By.CSS_SELECTOR, datalab_datail_css)
+                        datalab_datail_element.click()
+                    except:
+                        print("datalab 더보기 버튼 강제 클릭")
+                        self.driver.execute_script("arguments[0].click();", datalab_datail_element)
+                        pass
+
             except Exception as e:
-                print("더보기 클릭 중 오류 발생:", e)                           
+                print(f"Error: {e}")
+                return "정보 없음"        
+            #####
+
+            # 데이터랩 더보기 클릭
+            #app-root > div > div > div > div:nth-child(6) > div > div.place_section.I_y6k > div.NSTUp > div > a > span
+            #//*[@id="app-root"]/div/div/div/div[6]/div/div[8]/div[2]/div/a/span
+            # try:
+            #     datalab_detail = "정보 없음"
+            #     datalab_datail_xpath = '//*[@id="app-root"]/div/div/div/div[6]/div/div[8]/div[2]/div/a/span'
+            #     datalab_datail_css = "app-root > div > div > div > div:nth-child(6) > div > div.place_section.I_y6k > div.NSTUp > div > a > span"
+
+            #     try:
+            #         datalab_datail_element = self.driver.find_element(By.XPATH, datalab_datail_xpath)
+            #         self.driver.execute_script("arguments[0].scrollIntoView(true);", datalab_datail_element)
+            #         datalab_datail_element.click()
+            #     except:
+            #         try:
+            #             # XPath 실패 시 CSS_SELECTOR 시도
+            #             datalab_datail_element = self.driver.find_element(By.CSS_SELECTOR, css_address)
+            #             datalab_datail_element.click()
+            #         except:
+            #             print("datalab 더보기 버튼 강제 클릭")
+            #             self.driver.execute_script("arguments[0].click();", datalab_datail_element)
+            #             pass
+            # except Exception as e:
+            #     print(f"Error: {e}")
+            #     return "정보 없음"     
+                   
 
             # 분위기 수집 - 여러 방법 시도 (XPath와 CSS 선택자 모두 사용)
             atmosphere = "정보 없음"
@@ -590,7 +642,7 @@ class NaverMapCrawler:
             popular_age = "정보 없음"            
             try:
                 # 모든 '인기순위' 텍스트가 포함된 span 태그 찾기
-                ranking_spans = driver.find_elements(By.XPATH, "//span[contains(text(), '인기순위')]")
+                ranking_spans = self.driver.find_elements(By.XPATH, "//span[contains(text(), '인기순위')]")
 
                 for rank_span in ranking_spans:
                     # 해당 span 태그가 포함된 부모 요소 찾기
@@ -625,7 +677,7 @@ class NaverMapCrawler:
             popular_gender = "정보 없음"
             try:
                 # 첫 번째 '<tspan class="datalab-unit">%</tspan>' 요소 찾기
-                first_percent = driver.find_element(By.XPATH, "(//tspan[@class='datalab-unit' and text()='%'])[1]")
+                first_percent = self.driver.find_element(By.XPATH, "(//tspan[@class='datalab-unit' and text()='%'])[1]")
             
                 # 첫 번째 '%'의 부모 요소 찾기
                 parent_element = first_percent.find_element(By.XPATH, "./parent::*")
@@ -659,7 +711,6 @@ class NaverMapCrawler:
             place_data = {
                 '장소 이름': place_name,
                 '장소 카테고리': place_category,
-                '장소 설명': place_description.replace('\n', ' '),
                 '장소 주소': place_address,
                 '분위기': atmosphere.replace('\n', ' '),
                 '인기토픽': popular_topics.replace('\n', ' '),
@@ -669,6 +720,10 @@ class NaverMapCrawler:
             }
             
             print(f"장소 '{place_name}' 정보 수집 완료")
+
+            # 먼저 기본 문서로 돌아오기
+            self.driver.switch_to.default_content()  
+
             return place_data
             
         except Exception as e:
@@ -735,9 +790,9 @@ class NaverMapCrawler:
 # 메인 실행 코드
 if __name__ == "__main__":
     # 크롤링할 지역 리스트
-    regions = ["서울시 광진구 중곡동", "서울시 광진구 능동", "서울시 광진구 구의동", 
-              "서울시 광진구 광장동", "서울시 광진구 자양동", "서울시 광진구 화양동", 
-              "서울시 광진구 군자동"]
+    regions = ["서울 광진구 중곡동", "서울 광진구 능동", "서울 광진구 구의동", 
+              "서울 광진구 광장동", "서울 광진구 자양동", "서울 광진구 화양동", 
+              "서울 광진구 군자동"]
     
     # 크롤링할 카테고리 리스트
     categories = ["카페", "스터디카페", "보드게임카페", 
