@@ -237,7 +237,7 @@ class NaverMapCrawler:
         # CSV 파일 생성
         filename = f"{self.results_dir}/{region.replace(' ', '_')}_{category}_{self.timestamp}.csv"
         with open(filename, 'w', newline='', encoding='utf-8-sig') as csvfile:
-            fieldnames = ['장소 평점', '장소 이름', '장소 카테고리', '장소 주소', '분위기', '인기토픽', '찾는목적', '인기연령10대', '인기연령20대','인기연령30대','인기연령40대','인기연령50대','인기연령60대', '인기성별']
+            fieldnames = ['장소 이름', '장소 카테고리', '장소 주소', '분위기', '인기토픽', '찾는목적', '인기연령10대', '인기연령20대','인기연령30대','인기연령40대','인기연령50대','인기연령60대', '인기성별']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             
@@ -291,27 +291,10 @@ class NaverMapCrawler:
                         try:
                             # 장소 항목 클릭
                             print(f"장소 {idx+1}/{len(place_items)} 정보 수집 중...")
-                            rating = "null"
                             # 스크롤해서 항목이 보이게 만들기
                             self.driver.execute_script("arguments[0].scrollIntoView(true);", place_item)
                             time.sleep(1)  # 스크롤 대기 시간 증가
 
-                            try:
-                                # '별점' 태그를 먼저 찾고, 그 뒤에 있는 요소를 찾기
-                                print("평점찾기 - '별점' 뒤 값 찾기")
-                                rating_label = self.driver.find_element(By.XPATH, '//*[contains(text(), "별점")]')
-                                rating_element = rating_label.find_element(By.XPATH, './following-sibling::span')
-                                rating = rating_element.text if rating_element.text else "별점 없음"
-                            except:
-                                try:
-                                    # XPath 직접 활용하여 시도 (2차 시도)
-                                    print("평점찾기 - xpath로 값 찾기")
-                                    rating_element = self.driver.find_element(By.XPATH, '//*[@id="_pcmap_list_scroll_container"]/ul/li[67]/div[1]/div[1]/div/span[2]')
-                                    rating = rating_element.text if rating_element.text else "별점 없음"
-                                except:
-                                    print("평점찾기 - 실패 - 평점 없음 처리")
-                                    rating = "별점 없음"
-                            
                             # 항목 클릭
                             try:
                                 # place_item.click()
@@ -325,7 +308,7 @@ class NaverMapCrawler:
                             time.sleep(4)  # 상세 정보 로딩 대기 시간 증가
 
                             # 상세 정보 수집
-                            place_data = self.collect_place_info(region, rating)
+                            place_data = self.collect_place_info(region)
                             
                             # 지역이 일치하는 장소만 저장
                             if place_data:
@@ -409,7 +392,7 @@ class NaverMapCrawler:
             print(f"{region} {category} 크롤링 완료: {total_places}개 장소 수집")
             return total_places
     
-    def collect_place_info(self, target_region, rating):
+    def collect_place_info(self, target_region):
         """
         개별 장소의 상세 정보 수집
         
@@ -431,9 +414,6 @@ class NaverMapCrawler:
         except Exception as e:
             print(f"entry iframe 전환 실패: {e}")
             return
-
-        # 장소 평점 저장
-        place_rating = rating
 
         try:
             # 장소 이름 수집 - XPath 사용
@@ -463,10 +443,12 @@ class NaverMapCrawler:
             try:
                 # 장소 주소 수집 - XPath 사용
                 place_address = "정보 없음"
+
                 xpath_address = '//*[@id="app-root"]/div/div/div/div[5]/div/div[2]/div[1]/div/div[1]/div/a/span[1]'
                 css_address = "#app-root > div > div > div > div:nth-child(5) > div > div:nth-child(2) > div.place_section_content > div > div.O8qbU.tQY7D > div > a > span.LDgIH"
 
                 try:
+                    print("주소 수집 xpath시도")
                     address_element = self.driver.find_element(By.XPATH, xpath_address)
                     self.driver.execute_script("arguments[0].scrollIntoView(true);", address_element)
 
@@ -476,6 +458,7 @@ class NaverMapCrawler:
                 except:
                     try:
                         # XPath 실패 시 CSS_SELECTOR 시도
+                        print("주소 수집 css시도")
                         address_element = self.driver.find_element(By.CSS_SELECTOR, css_address)
                         place_address = address_element.text.strip()
                     except:
@@ -499,8 +482,6 @@ class NaverMapCrawler:
                 print(f"장소 '{place_name}'의 주소({place_address})가 대상 지역({target_region})에 포함되지 않아 건너뜁니다.")
                 return None
             
-
-
             # 데이터랩 항목까지 스크롤을 내려야 함!
             try:
                 # 스크롤을 여러 번 내리면서 동적 요소 로딩을 유도
@@ -519,7 +500,7 @@ class NaverMapCrawler:
                 # 데이터랩 더보기 버튼 찾기
 
                 # 데이터랩 안보이는 경우 체크가 필요. 광고 항목에는 안뜨는 것 같기도? 없으면 넘겨야할듯
-
+                time.sleep(1)
                 datalab_detail_xpath = '//*[@id="app-root"]/div/div/div/div[6]/div/div[8]/div[2]/div/a'
                 # datalab_datail_css = "app-root > div > div > div > div:nth-child(6) > div > div.place_section.I_y6k > div.NSTUp > div > a > span"
                 datalab_datail_css = "span.fvwqf[6]"
@@ -540,11 +521,10 @@ class NaverMapCrawler:
                         else:
                             print("요소가 6개보다 적습니다.")   #데이터 랩 없는 경우? 있어도 이쪽으로 넘어가는데?
 
-                            print(f"0번 요소 : {datalab_datail_element[0].text}")     
-                            print(f"1번 요소 : {datalab_datail_element[1].text}")
-                            print(f"2번 요소 : {datalab_datail_element[2].text}")            
-                            print(f"3번 요소 : {datalab_datail_element[3].text}")
-                            print(f"4번 요소 : {datalab_datail_element[4].text}")
+                            for i in len(datalab_datail_element):
+                                print(f"{i}번 요소 : {datalab_datail_element[i].text}")     
+                                if(datalab_datail_element[i].text == "더보기"):
+                                    datalab_datail_element[i].click()
 
                         # datalab_datail_element = self.driver.find_element(By.CSS_SELECTOR, datalab_datail_css)
                         # datalab_datail_element.click()
@@ -556,7 +536,6 @@ class NaverMapCrawler:
                         # 먼저 기본 문서로 돌아오기
                         self.driver.switch_to.default_content()  
                         place_data = {
-                            '장소 평점': place_rating,
                             '장소 이름': place_name,
                             '장소 카테고리': place_category,
                             '장소 주소': place_address,
@@ -572,6 +551,7 @@ class NaverMapCrawler:
                             '인기성별': "정보 없음",
                         }
                         return place_data   
+                        
                         
 
             except Exception as e:
@@ -766,7 +746,6 @@ class NaverMapCrawler:
 
             # 수집된 정보 반환
             place_data = {
-                '장소 평점': place_rating,
                 '장소 이름': place_name,
                 '장소 카테고리': place_category,
                 '장소 주소': place_address,
