@@ -506,50 +506,51 @@ class NaverMapCrawler:
                 datalab_datail_css = "span.fvwqf[6]"
 
                 try:
-                    datalab_detail_element = self.driver.find_element(By.XPATH, datalab_detail_xpath)
-                    self.driver.execute_script("arguments[0].scrollIntoView(true);", datalab_detail_element)
-                    time.sleep(0.5)  # 안정적인 클릭을 위해 대기
-                    datalab_detail_element.click()
+                    datalab_datail_elements = self.driver.find_elements(By.CLASS_NAME, "fvwqf")
+                    print("요소 개수 :", len(datalab_datail_elements))
+                    found = False
+                    for i, element in enumerate(datalab_datail_elements):
+                        print(f"{i}번 요소 : {element.text}")
+                        if element.text.strip() == "더보기":
+                            try:
+                                # 요소가 화면에 보이도록 스크롤
+                                self.driver.execute_script("arguments[0].scrollIntoView(true);", element)
+                                time.sleep(0.5)
+                                # 일반 클릭 시도
+                                element.click()
+                                print(f"더보기와 일치한 {i}번째 요소 클릭 시도 성공")
+                            except Exception as click_ex:
+                                print(f"일반 클릭 실패: {click_ex}, JavaScript 클릭 시도")
+                                try:
+                                    # JavaScript로 클릭 시도
+                                    self.driver.execute_script("arguments[0].click();", element)
+                                    print(f"JavaScript 클릭으로 {i}번째 요소 클릭 성공")
+                                except Exception as js_ex:
+                                    print(f"JavaScript 클릭 실패: {js_ex}")
+                                    raise js_ex
+                            found = True
+                            break
+                    if not found:
+                        print("더보기 버튼을 찾지 못했습니다.")
                 except Exception as e:
-                    try:
-                        print("DataLab 더보기 버튼 XPath 실패, CSS_SELECTOR 시도")
-                        datalab_datail_element = self.driver.find_elements(By.CLASS_NAME, "fvwqf")
-                        if len(datalab_datail_element) >= 6: #데이터 랩 없는 경우 6개인듯?
-                            target_element = datalab_datail_element[5]  # 6번째 요소
-                            print("6번째 span 태그 내용:", target_element.text)
-                            target_element.click()
-                        else:
-                            print("요소가 6개보다 적습니다.")   #데이터 랩 없는 경우? 있어도 이쪽으로 넘어가는데?
-                        time.sleep(0.5)
-                        print(f"요소 개수 : {len(datalab_datail_element)}")
-                        for i in range(len(datalab_datail_element)):
-                            print(f"{i}번 요소 : {datalab_datail_element[i]}")
-                            print()
-                            if datalab_datail_element[i].text.strip() == "더보기":
-                                datalab_datail_element[i].click()
-                                print(f"더보기와 일치한 {i}번째 요소 클릭시도했음")
-                                break  # 클릭 후 루프 종료
-
-                    except:
-                        print("DataLab 데이터가 없는 경우로 판단, DataLab 정보 생략")
-                        # 먼저 기본 문서로 돌아오기
-                        self.driver.switch_to.default_content()  
-                        place_data = {
-                            '장소 이름': place_name,
-                            '장소 카테고리': place_category,
-                            '장소 주소': place_address,
-                            '분위기': "정보 없음",
-                            '인기토픽': "정보 없음",
-                            '찾는목적': "정보 없음",
-                            '인기연령10대': "정보 없음",
-                            '인기연령20대': "정보 없음",
-                            '인기연령30대': "정보 없음",
-                            '인기연령40대': "정보 없음",
-                            '인기연령50대': "정보 없음",
-                            '인기연령60대': "정보 없음",
-                            '인기성별': "정보 없음",
-                        }
-                        return place_data   
+                    print("DataLab 정보 클릭 실패:", e)
+                    self.driver.switch_to.default_content()  
+                    place_data = {
+                        '장소 이름': place_name,
+                        '장소 카테고리': place_category,
+                        '장소 주소': place_address,
+                        '분위기': "정보 없음",
+                        '인기토픽': "정보 없음",
+                        '찾는목적': "정보 없음",
+                        '인기연령10대': "정보 없음",
+                        '인기연령20대': "정보 없음",
+                        '인기연령30대': "정보 없음",
+                        '인기연령40대': "정보 없음",
+                        '인기연령50대': "정보 없음",
+                        '인기연령60대': "정보 없음",
+                        '인기성별': "정보 없음",
+                    }
+                    return place_data
                         
                         
             except Exception as e:
